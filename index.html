@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Dice</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+min-height:100vh;
+background:linear-gradient(135deg,#0f1020,#1a1a2e,#16213e,#0f3460);
+font-family:Segoe UI,sans-serif;
+color:white;
+padding:20px;
+display:flex;
+justify-content:center;
+}
+
+.app{
+width:100%;
+max-width:1000px;
+display:flex;
+justify-content:center;
+align-items:flex-start;
+gap:20px;
+}
+
+.left{
+flex:1;
+display:flex;
+flex-direction:column;
+align-items:center;
+}
+
+.right{
+width:280px;
+flex-shrink:0;
+}
+
+.hero-img{
+width:100%;
+height:420px;
+object-fit:cover;
+border-radius:24px;
+box-shadow:0 0 25px rgba(124,106,255,.6),0 0 60px rgba(200,75,158,.4);
+border:2px solid rgba(255,255,255,.2);
+}
+
+.panel,.result-box,.history-box{
+width:100%;
+background:rgba(255,255,255,.06);
+border-radius:18px;
+padding:15px;
+margin-bottom:15px;
+backdrop-filter:blur(10px);
+text-align:center;
+max-width:700px;
+}
+
+.count-selector{
+display:flex;
+gap:8px;
+justify-content:center;
+flex-wrap:wrap;
+margin-bottom:10px;
+}
+
+.count-btn{
+width:42px;height:42px;
+border:none;
+border-radius:10px;
+background:rgba(255,255,255,.1);
+color:white;
+cursor:pointer;
+}
+
+.active{background:#7c6aff}
+
+.dice-grid{
+display:flex;
+justify-content:center;
+gap:12px;
+flex-wrap:wrap;
+margin-bottom:15px;
+}
+
+.die{
+width:110px;
+height:110px;
+border-radius:20px;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+background:#2a2a4a;
+transition:.25s;
+}
+
+.die-icon{font-size:2.2rem}
+
+.die.shake{animation:shake .12s infinite;}
+
+@keyframes shake{
+0%{transform:translate(0,0)}
+50%{transform:translate(2px,-2px)}
+100%{transform:translate(-2px,2px)}
+}
+
+.die.glow{
+box-shadow:0 0 25px rgba(124,106,255,.8),0 0 60px rgba(200,75,158,.5);
+animation:pulse .8s infinite;
+}
+
+@keyframes pulse{
+0%{transform:scale(1)}
+50%{transform:scale(1.05)}
+100%{transform:scale(1)}
+}
+
+.die.reveal{
+animation:pop .5s ease;
+}
+
+@keyframes pop{
+0%{transform:scale(.3);opacity:0}
+70%{transform:scale(1.1)}
+100%{transform:scale(1);opacity:1}
+}
+
+.roll-btn{
+padding:12px 18px;
+border:none;
+border-radius:14px;
+background:linear-gradient(135deg,#7c6aff,#c84b9e);
+color:white;
+font-weight:bold;
+cursor:pointer;
+margin:5px;
+}
+
+.history-item{
+display:flex;
+justify-content:space-between;
+padding:6px 0;
+border-bottom:1px solid rgba(255,255,255,.08);
+font-size:.9rem;
+}
+
+/* CAPTCHA */
+#captchaBox{
+margin-bottom:15px;
+}
+
+#captchaBox button{
+padding:10px 15px;
+border:none;
+border-radius:10px;
+cursor:pointer;
+background:#7c6aff;
+color:white;
+}
+
+/* MOBILE */
+@media(max-width:900px){
+.app{flex-direction:column;align-items:center;}
+.right{width:100%;}
+.hero-img{height:300px;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<div class="left">
+
+<!-- CAPTCHA -->
+<div id="captchaBox" class="panel">
+<p>🛡 Подтвердите, что вы не бот</p>
+<button onclick="solveCaptcha()">Я не бот</button>
+</div>
+
+<div class="panel">
+<div class="count-selector" id="countSelector"></div>
+</div>
+
+<div class="dice-grid" id="diceGrid"></div>
+
+<button class="roll-btn" id="normalBtn">🎲 Обычный</button>
+<button class="roll-btn" id="megaBtn">💥 MEGA</button>
+
+<div class="result-box" id="resultBox">Готов</div>
+
+<div class="history-box">
+<div id="history"></div>
+</div>
+
+</div>
+
+<div class="right">
+<img src="1.png" class="hero-img">
+</div>
+
+</div>
+
+<script>
+const COLORS=[
+{id:'red',name:'Красный',bg:'#e03e3e',icon:'🔴'},
+{id:'orange',name:'Оранжевый',bg:'#e07020',icon:'🟠'},
+{id:'yellow',name:'Жёлтый',bg:'#c9a800',icon:'🟡'},
+{id:'blue',name:'Синий',bg:'#2469d6',icon:'🔵'},
+{id:'purple',name:'Фиолетовый',bg:'#7b3fc9',icon:'🟣'},
+{id:'green',name:'Зелёный',bg:'#1c9e4a',icon:'🟢'}
+];
+
+let diceCount=3;
+let rolling=false;
+const history=[];
+
+function rand(n){return Math.floor(Math.random()*n);}
+function randColor(){return COLORS[rand(COLORS.length)];}
+
+function checkAccess(){
+if(!sessionStorage.getItem("captcha")){
+alert("Пройди проверку");
+return false;
+}
+return true;
+}
+
+function solveCaptcha(){
+sessionStorage.setItem("captcha","1");
+document.getElementById("captchaBox").style.display="none";
+}
+
+function buildDice(){
+const g=document.getElementById('diceGrid');
+g.innerHTML='';
+for(let i=0;i<diceCount;i++){
+const d=document.createElement('div');
+d.className='die';
+d.id='die-'+i;
+d.innerHTML='<div class="die-icon">⬜</div><div>—</div>';
+g.appendChild(d);
+}
+}
+
+function buildSelector(){
+const el=document.getElementById('countSelector');
+el.innerHTML='';
+for(let i=1;i<=6;i++){
+const b=document.createElement('button');
+b.className='count-btn'+(i===diceCount?' active':'');
+b.textContent=i;
+b.onclick=()=>{
+diceCount=i;
+buildSelector();
+buildDice();
+};
+el.appendChild(b);
+}
+}
+
+function roll(){
+return Array.from({length:diceCount},randColor);
+}
+
+/* NORMAL */
+document.getElementById('normalBtn').onclick=()=>{
+if(rolling||!checkAccess()) return;
+rolling=true;
+
+const final=roll();
+const dice=document.querySelectorAll('.die');
+
+dice.forEach(d=>d.classList.add('shake'));
+
+let t=0;
+const interval=setInterval(()=>{
+
+dice.forEach((d,i)=>{
+const c=randColor();
+d.style.background=c.bg;
+d.innerHTML=`<div class="die-icon">${c.icon}</div><div>${c.name}</div>`;
+});
+
+t++;
+if(t>8){
+clearInterval(interval);
+dice.forEach(d=>d.classList.remove('shake'));
+
+final.forEach((c,i)=>{
+const d=document.getElementById('die-'+i);
+d.style.background=c.bg;
+d.innerHTML=`<div class="die-icon">${c.icon}</div><div>${c.name}</div>`;
+});
+
+document.getElementById('resultBox').innerHTML=
+final.map(c=>c.icon).join(' ');
+
+addHistory(final);
+rolling=false;
+}
+},80);
+};
+
+/* MEGA */
+document.getElementById('megaBtn').onclick=()=>{
+if(rolling||!checkAccess()) return;
+rolling=true;
+
+const final=roll();
+const dice=document.querySelectorAll('.die');
+
+dice.forEach(d=>d.classList.add('glow'));
+
+final.forEach((c,i)=>{
+setTimeout(()=>{
+const d=document.getElementById('die-'+i);
+d.style.background=c.bg;
+d.innerHTML=`<div class="die-icon">${c.icon}</div><div>${c.name}</div>`;
+d.classList.add('reveal');
+}, i*900);
+});
+
+setTimeout(()=>{
+dice.forEach(d=>d.classList.remove('glow'));
+addHistory(final);
+rolling=false;
+}, diceCount*900+1000);
+
+document.getElementById('resultBox').innerHTML='💥 MEGA...';
+setTimeout(()=>{
+document.getElementById('resultBox').innerHTML=
+final.map(c=>c.icon).join(' ');
+}, diceCount*900+1100);
+};
+
+function addHistory(colors){
+history.unshift({
+time:new Date().toLocaleTimeString(),
+text:colors.map(c=>c.icon).join(' ')
+});
+if(history.length>12)history.pop();
+
+document.getElementById('history').innerHTML=
+history.map(h=>
+`<div class="history-item">
+<span>${h.time}</span>
+<span>${h.text}</span>
+</div>`
+).join('');
+}
+
+buildSelector();
+buildDice();
+</script>
+
+</body>
+</html>
